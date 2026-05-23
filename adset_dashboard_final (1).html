@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pocket FM Live Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        .header { background: white; border-bottom: 1px solid #e0e0e0; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; color: #1a1a19; }
+        .status { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #6b6b65; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #0F6E56; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .container { padding: 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .kpi { background: #f7f6f3; border-radius: 8px; padding: 15px; display: inline-block; margin-right: 20px; }
+        .kpi-label { font-size: 11px; color: #9b9b94; text-transform: uppercase; }
+        .kpi-value { font-size: 22px; font-weight: 600; color: #1a1a19; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f7f6f3; padding: 10px; text-align: left; font-size: 12px; font-weight: 600; border-bottom: 1px solid #e0e0e0; }
+        td { padding: 10px; border-bottom: 1px solid #e0e0e0; }
+        .loading { text-align: center; padding: 40px; color: #6b6b65; }
+        .error { background: #fcebeb; color: #a32d2d; padding: 15px; border-radius: 6px; margin: 20px; }
+        .success { background: #d4f0e6; color: #0F6E56; padding: 15px; border-radius: 6px; margin: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Pocket FM Live Dashboard</h1>
+        <div class="status">
+            <div class="dot"></div>
+            <span>Last updated: <strong id="lastUpdate">--:--</strong></span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="content" class="loading">Loading dashboard data...</div>
+    </div>
+
+    <!-- Load config first -->
+    <script src="config.js"></script>
+    
+    <!-- Load data fetcher second -->
+    <script src="data_fetcher.js"></script>
+    
+    <!-- Load dashboard logic last -->
+    <script>
+        async function loadDashboard() {
+            try {
+                console.log('📥 Loading live data...');
+                console.log('CONFIG:', typeof CONFIG);
+                console.log('fetchGoogleSheetsData:', typeof fetchGoogleSheetsData);
+                
+                const data = await fetchGoogleSheetsData();
+                
+                if (!data || Object.keys(data).length === 0) {
+                    showError('No data loaded. Check console for errors.');
+                    return;
+                }
+
+                // Update timestamp
+                const now = new Date();
+                document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+
+                // Build content
+                let html = '<div class="card success"><h2>✅ Dashboard Connected!</h2>';
+                
+                for (const [tabName, rows] of Object.entries(data)) {
+                    if (rows && rows.length > 0) {
+                        html += `<p>✓ ${tabName}: ${rows.length} rows</p>`;
+                    }
+                }
+                
+                html += '<p style="margin-top: 10px; font-size: 12px; color: #0F6E56;">Data will auto-refresh every 5 minutes</p></div>';
+
+                // Show first table
+                const firstTab = Object.entries(data).find(([_, rows]) => rows && rows.length > 0);
+                if (firstTab) {
+                    const [tabName, rows] = firstTab;
+                    html += `<div class="card"><h3>📋 ${tabName}</h3><table><thead><tr>`;
+                    
+                    const headers = Object.keys(rows[0]);
+                    headers.slice(0, 5).forEach(h => html += `<th>${h}</th>`);
+                    html += '</tr></thead><tbody>';
+                    
+                    rows.slice(0, 10).forEach(row => {
+                        html += '<tr>';
+                        headers.slice(0, 5).forEach(h => {
+                            const val = row[h];
+                            const display = val === null ? '-' : typeof val === 'number' ? val.toFixed(2) : val;
+                            html += `<td>${display}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table></div>';
+                }
+
+                document.getElementById('content').innerHTML = html;
+                console.log('✅ Dashboard loaded successfully!');
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Error loading dashboard: ' + error.message);
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('content').innerHTML = `<div class="error">⚠️ ${msg}</div>`;
+        }
+
+        // Wait for scripts to load, then load dashboard
+        setTimeout(loadDashboard, 500);
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadDashboard, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
