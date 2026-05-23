@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pocket FM Live Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f5f5f5;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1a1a19;
+            margin: 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #d4f0e6;
+            color: #0F6E56;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.live {
+            background: #d4f0e6;
+            color: #0F6E56;
+        }
+
+        .badge.loading {
+            background: #faeeda;
+            color: #8a5500;
+        }
+
+        .status-group {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #6b6b65;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #0F6E56;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.error {
+            background: #C13B00;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #185FA5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: #0d3f7a;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .refresh-btn.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .refresh-icon {
+            display: inline-block;
+            transition: transform 0.6s linear;
+        }
+
+        .refresh-icon.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .dashboard-container {
+            height: calc(100vh - 60px);
+            overflow: hidden;
+            background: white;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            font-size: 18px;
+            color: #666;
+            z-index: 1000;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid #185FA5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            font-size: 11px;
+            color: #999;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .status-group {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .refresh-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>📊 Pocket FM Ad Dashboard</h1>
+            <span class="badge live" id="badgeStatus">✓ LIVE</span>
+        </div>
+
+        <div class="status-group">
+            <div class="status">
+                <div class="status-dot" id="statusDot"></div>
+                <span>Last updated: <strong id="lastUpdate">--:--</strong></span>
+                <span id="autoRefreshStatus" style="font-size: 11px; color: #999;">5m auto-refresh</span>
+            </div>
+            <button class="refresh-btn" id="refreshBtn">
+                <span class="refresh-icon">🔄</span>
+                Refresh Now
+            </button>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div>Loading dashboard...</div>
+    </div>
+
+    <div class="dashboard-container">
+        <iframe id="dashboardFrame" src="adset_dashboard_final.html"></iframe>
+    </div>
+
+    <div class="footer">
+        <span id="versionInfo">v1.0 • Auto-sync enabled</span>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="data_fetcher.js"></script>
+
+    <script>
+        // ==================== Dashboard Controller ====================
+        
+        class DashboardController {
+            constructor() {
+                this.refreshBtn = document.getElementById('refreshBtn');
+                this.statusDot = document.getElementById('statusDot');
+                this.lastUpdateSpan = document.getElementById('lastUpdate');
+                this.badgeStatus = document.getElementById('badgeStatus');
+                this.loadingOverlay = document.getElementById('loadingOverlay');
+                this.isRefreshing = false;
+                
+                this.init();
+            }
+
+            init() {
+                console.log('🚀 Dashboard Controller initialized');
+                
+                // Refresh button
+                this.refreshBtn.addEventListener('click', () => this.manualRefresh());
+                
+                // Initial load
+                this.updateDashboard();
+                
+                // Auto-refresh every 5 minutes
+                setInterval(() => this.autoRefresh(), CONFIG.REFRESH_INTERVAL);
+                
+                // Hide loading overlay after 2 seconds
+                setTimeout(() => {
+                    this.loadingOverlay.classList.add('hidden');
+                }, 2000);
+            }
+
+            async updateDashboard() {
+                try {
+                    console.log('📥 Fetching live data from Google Sheets...');
+                    const data = await fetchGoogleSheetsData();
+                    
+                    this.updateTimestamp();
+                    this.setStatusOnline();
+                    
+                    console.log('✓ Dashboard data updated');
+                    console.log('Data summary:', {
+                        tabs: Object.keys(data),
+                        rows: Object.entries(data).map(([k, v]) => `${k}: ${v?.length || 0}`)
+                    });
+                    
+                    return data;
+                } catch (error) {
+                    console.error('✗ Error updating dashboard:', error);
+                    this.setStatusError();
+                    return null;
+                }
+            }
+
+            async manualRefresh() {
+                if (this.isRefreshing) return;
+                
+                this.isRefreshing = true;
+                this.refreshBtn.classList.add('loading');
+                this.refreshBtn.querySelector('.refresh-icon').classList.add('spinning');
+                this.refreshBtn.disabled = true;
+                
+                try {
+                    await this.updateDashboard();
+                } finally {
+                    this.isRefreshing = false;
+                    this.refreshBtn.classList.remove('loading');
+                    this.refreshBtn.querySelector('.refresh-icon').classList.remove('spinning');
+                    this.refreshBtn.disabled = false;
+                }
+            }
+
+            autoRefresh() {
+                console.log('🔄 Auto-refresh triggered');
+                this.updateDashboard();
+            }
+
+            updateTimestamp() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                this.lastUpdateSpan.textContent = `${hours}:${minutes}`;
+                
+                // Store in localStorage for persistence
+                localStorage.setItem('dashboardLastUpdate', now.toISOString());
+            }
+
+            setStatusOnline() {
+                this.statusDot.classList.remove('error');
+                this.statusDot.style.background = '#0F6E56';
+                this.badgeStatus.textContent = '✓ LIVE';
+                this.badgeStatus.className = 'badge live';
+            }
+
+            setStatusError() {
+                this.statusDot.classList.add('error');
+                this.badgeStatus.textContent = '⚠ ERROR';
+                this.badgeStatus.className = 'badge error';
+            }
+        }
+
+        // Initialize on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            new DashboardController();
+        });
+
+        // Global error handler
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+
+        // Log page visibility
+        document.addEventListener('visibilitychange', () => {
+            if (document.visible) {
+                console.log('📱 Page became visible');
+            } else {
+                console.log('📱 Page hidden');
+            }
+        });
+    </script>
+</body>
+
+</html>
